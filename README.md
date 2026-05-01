@@ -25,18 +25,31 @@ This project is based on the excellent reverse engineering work by **syssi** and
 
 ## Installation
 
+### 1. Install Dependencies
+
 ```bash
-# Install dependencies
 sudo apt-get update
 sudo apt-get install python3-pip
 pip3 install bleak paho-mqtt
+```
 
-# Download script
+### 2. Download Script
+
+```bash
 wget https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/seplos_bms_ble.py
 chmod +x seplos_bms_ble.py
 ```
 
-## Configuration
+### 3. Configure MAC Address
+
+Find your BMS MAC address:
+
+```bash
+sudo bluetoothctl
+[bluetooth]# scan on
+# Look for device starting with 60:6E:41 (Seplos OUI)
+[bluetooth]# quit
+```
 
 Edit the MAC address in the script:
 
@@ -44,11 +57,11 @@ Edit the MAC address in the script:
 MAC_ADDRESS = "60:6E:41:16:73:DC"  # Your BMS MAC address
 ```
 
-Find your BMS MAC address:
+### 4. Fix Bluetooth Permissions
+
 ```bash
-sudo bluetoothctl
-[bluetooth]# scan on
-# Look for device starting with 60:6E:41 (Seplos OUI)
+sudo usermod -a -G bluetooth $USER
+# Logout and login again for group changes to take effect
 ```
 
 ## Usage
@@ -109,6 +122,80 @@ sudo python3 seplos_bms_ble.py mqtt 30 --host 192.168.1.50 --port 1883 --topic s
 sudo python3 seplos_bms_ble.py --help
 ```
 
+## Systemd Service (Auto-Start)
+
+To run the script automatically on boot as a systemd service:
+
+### 1. Install Service File
+
+```bash
+# Copy service file to systemd
+sudo cp seplos-bms-ble.service /etc/systemd/system/
+
+# Reload systemd
+sudo systemctl daemon-reload
+```
+
+### 2. Configure Service (Optional)
+
+Edit the service file to match your setup:
+
+```bash
+sudo nano /etc/systemd/system/seplos-bms-ble.service
+```
+
+Key settings to adjust:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `ExecStart` | `... mqtt` | Command to run. Change mode/interval/topic here |
+| `User` | `pi` | User to run as |
+| `WorkingDirectory` | `/home/pi` | Where the script is located |
+
+Example with custom MQTT broker:
+```ini
+ExecStart=/usr/bin/python3 /home/pi/seplos_bms_ble.py mqtt 30 --host 192.168.1.50 --topic seplosbms
+```
+
+### 3. Enable and Start Service
+
+```bash
+# Enable auto-start on boot
+sudo systemctl enable seplos-bms-ble.service
+
+# Start service now
+sudo systemctl start seplos-bms-ble.service
+
+# Check status
+sudo systemctl status seplos-bms-ble.service
+```
+
+### 4. View Logs
+
+```bash
+# Follow logs in real-time
+sudo journalctl -u seplos-bms-ble.service -f
+
+# View last 50 lines
+sudo journalctl -u seplos-bms-ble.service -n 50
+
+# View logs since last boot
+sudo journalctl -u seplos-bms-ble.service --since today
+```
+
+### 5. Manage Service
+
+```bash
+# Stop service
+sudo systemctl stop seplos-bms-ble.service
+
+# Restart service
+sudo systemctl restart seplos-bms-ble.service
+
+# Disable auto-start
+sudo systemctl disable seplos-bms-ble.service
+```
+
 ## MQTT Topics
 
 With default topic prefix `seplosbms`:
@@ -124,10 +211,10 @@ With default topic prefix `seplosbms`:
 | `seplosbms/capacity_total` | Total capacity | Ah |
 | `seplosbms/cycles` | Charge cycles | count |
 | `seplosbms/port_voltage` | Port voltage | V |
-| `seplosbms/temp/ambient` | Ambient temperature | °C |
-| `seplosbms/temp/mosfet` | MOSFET temperature | °C |
-| `seplosbms/temp/average_cell` | Average cell temperature | °C |
-| `seplosbms/temp/cell_1` ... `cell_8` | Individual cell temperatures | °C |
+| `seplosbms/temp/ambient` | Ambient temperature | C |
+| `seplosbms/temp/mosfet` | MOSFET temperature | C |
+| `seplosbms/temp/average_cell` | Average cell temperature | C |
+| `seplosbms/temp/cell_1` ... `cell_8` | Individual cell temperatures | C |
 | `seplosbms/cell/1/voltage` ... `cell_24/voltage` | Individual cell voltages | V |
 | `seplosbms/cell/1/balancing` ... | Balancing state | ON/OFF |
 | `seplosbms/cell/1/disconnected` ... | Disconnected state | ON/OFF |
@@ -219,7 +306,7 @@ Resolution of BMS values:
 | Value | Resolution | Format |
 |-------|-----------|--------|
 | Cell voltage | 1 mV | uint16 * 0.001 |
-| Temperature | 0.1 °C | (uint16 * 0.1) - 273.15 K |
+| Temperature | 0.1 C | (uint16 * 0.1) - 273.15 K |
 | Current | 10 mA | int16 * 0.01 |
 | Total voltage | 10 mV | uint16 * 0.01 |
 | SOC/SOH | 0.1 % | uint16 * 0.1 |
@@ -230,7 +317,7 @@ Resolution of BMS values:
 ### Permission denied
 ```bash
 sudo usermod -a -G bluetooth $USER
-# Logout and login again
+# Logout and login again for group changes to take effect
 ```
 
 ### Connection timeout
@@ -242,6 +329,18 @@ sudo usermod -a -G bluetooth $USER
 - Check if MQTT broker is running: `systemctl status mosquitto`
 - Verify firewall rules for port 1883
 - Test with `mosquitto_pub -t test -m "hello"`
+
+### Service fails to start
+```bash
+# Check for errors
+sudo journalctl -u seplos-bms-ble.service -n 50
+
+# Test script manually first
+sudo python3 /home/pi/seplos_bms_ble.py
+
+# Check if script path is correct in service file
+sudo systemctl cat seplos-bms-ble.service
+```
 
 ### Wrong switch/alarm states
 Make sure you are using the latest version of this script. Earlier versions had incorrect offset calculations for switch and alarm data.
