@@ -1,0 +1,23 @@
+[Unit]
+Description=Seplos BMS 10E Bluetooth Reader
+After=bluetooth.target network.target
+Wants=bluetooth.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi
+ExecStart=/usr/bin/python3 /home/pi/seplos_bms_ble.py mqtt
+Restart=on-failure
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+# Optional: Environment variables for MQTT configuration
+# Environment="MQTT_HOST=192.168.1.50"
+# Environment="MQTT_PORT=1883"
+# Environment="MQTT_TOPIC=seplosbms"
+
+[Install]
+WantedBy=multi-user.target
